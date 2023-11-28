@@ -1,4 +1,3 @@
-from abc import ABC, abstractmethod
 from typing import Any
 class Card():
   def __init__(self, color="gray", value="") -> None:
@@ -15,8 +14,12 @@ class Card():
     return self._value
   
   @property
+  def hidden(self):
+    return {"color" : self.color, "value" : self.value} if self._revealed else {"color" : None, "value" : None}
+  
+  @property
   def revealed(self):
-    return self._revealed
+    return {"color" : self.color, "value" : self.value}
   
   @color.setter
   def color(self, color):
@@ -27,7 +30,7 @@ class Card():
     self._value = value
 
   def flip(self) -> None:
-    if not self.revealed: self._revealed = not self._revealed
+    if not self._revealed: self._revealed = not self._revealed
     else: return 
 
   def __str__(self) -> str:
