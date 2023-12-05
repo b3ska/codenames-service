@@ -1,8 +1,5 @@
-from abc import ABC, abstractmethod
-import asyncio
+from abc import abstractmethod
 import json
-
-import websockets
 
 class Player():
   def __init__(self, name, team, socket) -> None:
@@ -22,18 +19,16 @@ class Player():
   def socket(self):
     return self._socket
 
-  async def recieve_data(self, delay=1):
-    await asyncio.sleep(delay)
+  async def recieve_data(self):
+    '''Recieves data from the player's socket.'''
+    print(f"Recieving data from {self.name}")
     data = await self._socket.recv()
     return json.loads(data)
 
   async def send_data(self, data):
-    if self._socket.open:
-      print(f"Sending data to {self.name}")
-      await self._socket.send(json.dumps(data))
-    else:
-      print("Socket closed for player", self.name)
-      return "Socket closed."
+    '''Sends data to the player's socket.'''
+    print(f"Sending data to {self.name}")
+    await self._socket.send(json.dumps(data))
     
   @abstractmethod  
   async def send_field(self, field):
@@ -41,17 +36,21 @@ class Player():
 
   def __str__(self) -> str:
     return f"Player({self.name}, {self.team}, {self.socket})"
+  
 class SpyMaster(Player):
   def __init__(self, name, team, socket) -> None:
     super().__init__(name, team, socket)
   
   async def send_data(self, data):
+    '''calls super().send_data(data)'''
     await super().send_data(data)
     
   async def recieve_data(self):
+    '''calls super().recieve_data()'''
     return await super().recieve_data()
 
   async def send_field(self, field):
+    '''Sends the revealed field to the player.'''
     await self.send_data(field.revealed())
 
 class Agent(Player):
@@ -59,9 +58,11 @@ class Agent(Player):
     super().__init__(name, team, socket)
     
   async def send_field(self, field):
+    '''Sends the hidden field to the player.'''
     await self.send_data(field.hidden())
 
   async def send_data(self, data):
+    '''calls super().send_data(data)'''
     await super().send_data(data)
     
   async def recieve_data(self):

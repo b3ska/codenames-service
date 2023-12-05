@@ -1,18 +1,20 @@
+# main file for codenames-service, runs the server and handles connections,
+# also handles the game logic, and the game log.
 import asyncio
 import random
 import websockets
 import json
-from classes.Card import Card
-from classes.Player import SpyMaster
-from classes.Player import Agent
-from classes.Field import Field
+from classes.card import Card
+from classes.player import SpyMaster
+from classes.player import Agent
+from classes.field import Field
 
 LOBBYS = {
     1238: {
         "allowed_games": {0 : "CodeNames"},
         "code" : "0051",
         "desc" : "This IS CODENAMES",
-        "game" : "Truth or Dare",
+        "game" : "codenames",
         "host" : "372aK76mbQURxTXoRPSOG8dTP0V2",
         "maxPlayers" : 10,
         "minPlayers": 4,
@@ -20,20 +22,26 @@ LOBBYS = {
             0 : "372aK76mbQURxTXoRPSOG8dTP0V2",
             1 : "rbERfRUndSRizl3Sds6Al8lTJOp1",
             2 : "mPxbBKrDQQYKEXuxqZJc8ffApgo1",
+            4 : "asdsdasdfaYKEXuxqZJc8ffAfgo2",
         },
-        "status" : "started",
+        "status" : "doesnt matter",
     },
     "Second lobby data" : {},
 }
 
-PLAYERS = {}
-FIELDS = {}
+players = {}
+fields = {}
 
-async def send_field(socket_list, field):
+async def send_data_toall(socket_list, data):
+    '''Sends the data to all players in the socket list.'''
     for player in socket_list:
-        await player.send_field(field)
+        if isinstance(data, Field):
+            await player.send_field(data)
+        else:
+            await player.send_data(data)
         
 def log_game_moves(log, lobby_id):
+    '''Logs game moves to a file.'''
     try:
         with open(f"{lobby_id}_game_log.txt", "a") as f:
             f.write(log + "\n")
@@ -42,15 +50,17 @@ def log_game_moves(log, lobby_id):
             f.write(log + "\n")
         
 async def find_full_lobby():
+    '''Finds a full lobby and starts a game.'''
     while True:
         for lobby_id, lobby_data in LOBBYS.items():
-            if "players" in lobby_data and lobby_id in PLAYERS.keys():
-                if len(lobby_data["players"]) == len(PLAYERS[lobby_id]):
+            if "players" in lobby_data and lobby_id in players.keys():
+                if len(lobby_data["players"]) == len(players[lobby_id]):
                     print("Full lobby found.")
-                    await game(PLAYERS[lobby_id], FIELDS[lobby_id], lobby_id)
+                    await game(players[lobby_id], fields[lobby_id], lobby_id)
         await asyncio.sleep(5)
 
 async def game(socket_list, field, lobby_id):
+    '''Runs the game loop.'''
     score = {"red": 0, "blue": 0}
     
     log_game_moves("Game started.", lobby_id)
@@ -61,7 +71,7 @@ async def game(socket_list, field, lobby_id):
     
     while True:
         playing_team, waiting_team = waiting_team, playing_team
-        await send_field(socket_list, field)
+        await send_data_toall(socket_list, field)
         log_game_moves(f"Playing team: {playing_team}", lobby_id)
         log_game_moves(str(field), lobby_id)
         data = None
@@ -70,22 +80,21 @@ async def game(socket_list, field, lobby_id):
             if player.team == playing_team and isinstance(player, SpyMaster):
                 log_game_moves(f"{player.name}'s turn to send .", lobby_id)
                 await player.send_data("your turn")
-                data = await player.recieve_data()
+                data = await player.recieve_data() # waiting for json {"hint": "test", "num_guesses": 2}
             else: 
                 await player.send_data("turn : " + playing_team)
         
         #send hint to all players
-        for player in socket_list:
-            await player.send_data(data)
+        await send_data_toall(socket_list, data)
 
-        log_game_moves(f"Hint: {data['hint']}, {data['num_guesses']}", lobby_id)
+        log_game_moves(f"Hint: {data['hint']}, {data['num_guesses']}", lobby_id) # type: ignore
         
         for player in socket_list:
             if player.team == playing_team and isinstance(player, Agent):
                 await player.send_data("send guess cards")
                 if data is not None and "num_guesses" in data:
                     for i in range(data["num_guesses"]):
-                        data = await player.recieve_data()
+                        data = await player.recieve_data()  # waiting for json {"x": 0, "y": 0}
                         if not data: break
                         x, y = data["x"], data["y"]
                         log_game_moves(f"{player.name} guessed {str(field.get_card(x, y))}.", lobby_id)
@@ -98,22 +107,26 @@ async def game(socket_list, field, lobby_id):
                         elif field.get_card(x, y).color == "black":
                             score[waiting_team] = field.num_colored
                             break
-                        await send_field(socket_list, field)
+                        else:
+                            break
+                        await send_data_toall(socket_list, field)
         
         log_game_moves(f"Score: {score}", lobby_id)
-        if (score["red"] == field.num_colored or score["blue"] == field.num_colored): break
+        await send_data_toall(socket_list, score)
         print("score:", score)
+        if (score["red"] == field.num_colored or score["blue"] == field.num_colored): 
+            print("Game over.")
+            break
         
     # end game
     for player in socket_list:
         await player.send_data("game over")
-        await player.send_data(score)
         player.socket.close()
         
     log_game_moves("Game over.", lobby_id)
 
 async def handler(websocket, path):
-    # do something upon connection
+    '''Handles connections to the server.'''
     await websocket.send("Hello from the server!")
 
     lobby_containing_player = {}
@@ -140,34 +153,31 @@ async def handler(websocket, path):
         return
     
     # add player to socket list
-    if not PLAYERS.get(lobby_id_containing_player):
-        if data["role"] == "spymaster": PLAYERS[lobby_id_containing_player] = [SpyMaster(data["name"], data["team"], websocket)]
-        elif data["role"] == "agent": PLAYERS[lobby_id_containing_player] = [Agent(data["name"], data["team"], websocket)]
+    if not players.get(lobby_id_containing_player):
+        if data["role"] == "spymaster": players[lobby_id_containing_player] = [SpyMaster(data["name"], data["team"], websocket)]
+        elif data["role"] == "agent": players[lobby_id_containing_player] = [Agent(data["name"], data["team"], websocket)]
     else:
-        if data["role"] == "spymaster": PLAYERS[lobby_id_containing_player].append(SpyMaster(data["name"], data["team"], websocket))
-        elif data["role"] == "agent": PLAYERS[lobby_id_containing_player].append(Agent(data["name"], data["team"], websocket))
+        if data["role"] == "spymaster": players[lobby_id_containing_player].append(SpyMaster(data["name"], data["team"], websocket))
+        elif data["role"] == "agent": players[lobby_id_containing_player].append(Agent(data["name"], data["team"], websocket))
     
-    connected_players = len(PLAYERS[lobby_id_containing_player])
+    connected_players = len(players[lobby_id_containing_player])
 
     # wait for everyone to connect
     log_game_moves(f"{data['name']} connected.", lobby_id_containing_player)
     await websocket.send("Waiting for everyone to connect...")
     while connected_players < len(lobby_containing_player["players"]):
         await asyncio.sleep(3)
-        connected_players = len(PLAYERS[lobby_id_containing_player])
+        connected_players = len(players[lobby_id_containing_player])
     
     if connected_players == len(lobby_containing_player["players"]):
-        if not FIELDS.get(lobby_id_containing_player):
-            FIELDS[lobby_id_containing_player] = Field()
+        if not fields.get(lobby_id_containing_player):
+            fields[lobby_id_containing_player] = Field()
             
     try:
         await websocket.wait_closed()
     finally:
         print("Connection closed.")
         # remove player from socket list
-
-
-
 
 async def main():
     async with websockets.serve(handler, "localhost", 8081):

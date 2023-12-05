@@ -1,4 +1,4 @@
-from typing import Any
+# Card class, used to represent a single card in the game.
 class Card():
   def __init__(self, color="gray", value="") -> None:
     self.color = color
@@ -15,7 +15,7 @@ class Card():
   
   @property
   def hidden(self):
-    return {"color" : self.color, "value" : self.value} if self._revealed else {"color" : None, "value" : None}
+    return {"color" : self.color, "value" : self.value} if self._revealed else {"color" : None, "value" : self.value}
   
   @property
   def revealed(self):
@@ -30,8 +30,10 @@ class Card():
     self._value = value
 
   def flip(self) -> None:
+    '''Flips the card over, revealing the color and value.'''
     if not self._revealed: self._revealed = not self._revealed
     else: return 
 
   def __str__(self) -> str:
+    '''Returns a string representation of the card.'''
     return f"Card({self.color}, {self.value})"
