@@ -1,13 +1,16 @@
 # main file for codenames-service, runs the server and handles connections,
 # also handles the game logic, and the game log.
+from fastapi import FastAPI, WebSocket, Header
+from typing import Annotated
 import asyncio
 import random
-import websockets
 import json
+from classes.lobby import Lobby, Player
 from classes.card import Card
 from classes.player import SpyMaster
 from classes.player import Agent
 from classes.field import Field
+import clients.lobby_service as lobby_service
 
 LOBBYS = {
     1238: {
@@ -125,11 +128,11 @@ async def game(socket_list, field, lobby_id):
         
     log_game_moves("Game over.", lobby_id)
 
-async def handler(websocket, path):
+async def handler(websocket, lobby):
     '''Handles connections to the server.'''
     await websocket.send("Hello from the server!")
 
-    lobby_containing_player = {}
+    lobby_containing_player = lobby.players
     lobby_id_containing_player = None
     
     # wait for data
@@ -179,9 +182,77 @@ async def handler(websocket, path):
         print("Connection closed.")
         # remove player from socket list
 
-async def main():
-    async with websockets.serve(handler, "localhost", 8081):
-        await find_full_lobby()
+app = FastAPI()
 
-if __name__ == "__main__":
-    asyncio.run(main())
+LOBBIES = {}
+
+
+@app.websocket("/lobby/{lobby_id}")
+async def lobby_endpoint(
+    lobby_id: str,
+    ws: WebSocket,
+    user_id: Annotated[str | None, Header()] = Header(None),
+    Authorization: Annotated[str | None, Header()] = Header(None),
+    ):
+
+
+    if user_id is None:
+        await ws.send_text(str({"msg": "User ID is required."}))
+        await ws.close()
+        return
+    
+    if Authorization is None:
+        await ws.send_text(str({"msg": "Authorization is required."}))
+        await ws.close()
+        return
+    
+
+    if lobby_id not in LOBBIES.keys():
+        lobby_data = lobby_service.get_lobby_data(lobby_id)
+        if lobby_data is None:
+            ws.send_text(str({"msg": "Lobby not found."}))
+            await ws.close()
+            return
+        lobby = Lobby(lobby_data["players"])
+        lobby.set_host(lobby_data["host"])
+        LOBBIES[lobby_id] = lobby
+    if lobby_id in LOBBIES.keys():
+        if lobby.status == "closed":
+            lobby_data = lobby_service.get_lobby_data(lobby_id)
+            if lobby_data is None:
+                ws.send_text(str({"msg": "Lobby not found."}))
+                await ws.close()
+                return
+            lobby = Lobby(lobby_data["players"])
+            lobby.set_host(lobby_data["host"])
+            LOBBIES[lobby_id] = lobby
+        else:
+            lobby = LOBBIES[lobby_id]
+            lobby.add_player(ws)
+
+
+    player = Player(user_id, Authorization, ws)
+
+    await ws.accept()
+    lobby.add_player(player)
+
+    try:
+        while True:
+            # Wait for messages (in case you want to add more functionality)
+            data = await ws.receive_text()
+            handler(data, lobby)
+    except Exception as e:
+        print(e)
+    finally:
+        # Remove the player when the WebSocket connection is closed
+        lobby.remove_player(user_id)
+        if ws == lobby.host:
+            lobby.close()
+        await ws.close()
+
+# async def main():
+#     async with websockets.serve(handler, "localhost", 8081):
+#         await find_full_lobby()
+
+# if __name__ == "__main__":
+#     asyncio.run(main())
