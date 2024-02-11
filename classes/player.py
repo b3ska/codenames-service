@@ -5,21 +5,25 @@ from fastapi import WebSocket
 class Player:
     def __init__(self, uid: str, auth:str, ws: WebSocket, team: str, role: str):
       self._uid = uid
-      self._wd = ws
+      self._ws = ws
       self._team = team
       self._role = role
 
     @property
-    def name(self):
+    def uid(self):
       return self._uid
     
     @property
-    def _team(self):
+    def team(self):
       return self._team
     
     @property
-    def socket(self):
-      return self._socket
+    def ws(self):
+      return self._ws
+    
+    @property
+    def role(self):
+      return self._role
 
     def update_role(self, role: str):
       self._role = role
@@ -28,14 +32,14 @@ class Player:
       self._team = team
 
     async def send_msg(self, message: str):
-        await self._wd.send_text(message)
+        await self._ws.send_text(message)
     
     async def get_player_input(self) -> str:
-        ret = await self.socket.receive_text()
+        ret = await self._ws.receive_text()
         return ret
   
     def __str__(self) -> str:
-      return f"Player({self._uid}, {self._team}, {self._role}, {self._wd})"
+      return f"Player({self._uid}, {self._team}, {self._role}, {self._ws})"
 
 
 
