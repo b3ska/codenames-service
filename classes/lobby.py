@@ -11,7 +11,7 @@ class Lobby:
 
     def add_player(self, player: Player):
         self.players.append(player)
-        self.send_msg_to_all(str({"msg":"Joined the lobby.", "uid":player.uid}))
+        self.send_msg_to_all("Joined the lobby.", "info")
 
     def set_host(self, uid: str):
         for player in self.players:
@@ -21,7 +21,7 @@ class Lobby:
 
     def remove_player(self, uid: str):
         self.players = [player for player in self.players if player.uid != uid]
-        self.send_msg_to_all(str({"msg":"Left the lobby.", "uid":uid}))
+        self.send_msg_to_all("Left the lobby.", "info", uid)
         if (self.players == []):
             self.status = "empty"
 

@@ -132,14 +132,10 @@ async def lobby_endpoint(
             lobby = Lobby(lobby_data["players"])
             lobby.set_host(lobby_data["host"])
             LOBBIES[lobby_id] = lobby
-        else:
-            lobby = LOBBIES[lobby_id]
-            lobby.add_player(ws)
 
 
     player = Player(userId, Authorization, ws, "red", "SpyMaster")
 
-    await ws.accept()
     lobby.add_player(player)
 
     try:
