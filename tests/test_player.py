@@ -22,7 +22,7 @@ class TestPlayer(unittest.TestCase):
         self.assertEqual(self.player.name, "John")
 
     def test_team(self):
-        self.assertEqual(self.player.team, "Red")
+        self.assertEqual(self.player._team, "Red")
 
     def test_socket(self):
         self.assertIsNone(self.player.socket)

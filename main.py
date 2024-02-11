@@ -5,9 +5,9 @@ from typing import Annotated
 import asyncio
 import random
 import json
-from classes.lobby import Lobby, Player
+from classes.lobby import Lobby
 from classes.card import Card
-from classes.player import SpyMaster
+from classes.player import SpyMaster, Player
 from classes.player import Agent
 from classes.field import Field
 import clients.lobby_service as lobby_service
@@ -128,59 +128,29 @@ async def game(socket_list, field, lobby_id):
         
     log_game_moves("Game over.", lobby_id)
 
-async def handler(websocket, lobby):
-    '''Handles connections to the server.'''
-    await websocket.send("Hello from the server!")
-
-    lobby_containing_player = lobby.players
-    lobby_id_containing_player = None
-    
-    # wait for data
-    data = await websocket.recv()   # waiting for json {"name": "Artem1", "role": "SpyMaster", "uid": "372aK76mbQURxTXoRPSOG8dTP0V2", "team": "red"}
+async def handler(msg, websocket, lobby):
     try:
-        data = json.loads(data)
-    except json.decoder.JSONDecodeError:
-        await websocket.send("Invalid data.")
-        websocket.close()
+        message = json.loads(msg)
+        print(message)
+        msg_type = message.get("type")
+    except Exception as e:
+        print(f"Error parsing message from player {str(msg)}")
 
-    # find lobby containing player
-    for lobby_id, lobby_data in LOBBYS.items():
-        if "players" in lobby_data and data['uid'] in lobby_data["players"].values():
-            lobby_containing_player = LOBBYS[lobby_id]
-            lobby_id_containing_player = lobby_id
-            break
-    
-    if not lobby_id_containing_player:
-        await websocket.send("Lobby not found.")
-        websocket.close()
-        return
-    
-    # add player to socket list
-    if not players.get(lobby_id_containing_player):
-        if data["role"] == "spymaster": players[lobby_id_containing_player] = [SpyMaster(data["name"], data["team"], websocket)]
-        elif data["role"] == "agent": players[lobby_id_containing_player] = [Agent(data["name"], data["team"], websocket)]
-    else:
-        if data["role"] == "spymaster": players[lobby_id_containing_player].append(SpyMaster(data["name"], data["team"], websocket))
-        elif data["role"] == "agent": players[lobby_id_containing_player].append(Agent(data["name"], data["team"], websocket))
-    
-    connected_players = len(players[lobby_id_containing_player])
+    event_handlers = {
+        "move": lobby.handle_move,
+        "info": lobby.handle_info,
+        "game_state": lobby.handle_game_state
+        # Add more event handlers as needed
+    }
 
-    # wait for everyone to connect
-    log_game_moves(f"{data['name']} connected.", lobby_id_containing_player)
-    await websocket.send("Waiting for everyone to connect...")
-    while connected_players < len(lobby_containing_player["players"]):
-        await asyncio.sleep(3)
-        connected_players = len(players[lobby_id_containing_player])
-    
-    if connected_players == len(lobby_containing_player["players"]):
-        if not fields.get(lobby_id_containing_player):
-            fields[lobby_id_containing_player] = Field()
-            
-    try:
-        await websocket.wait_closed()
-    finally:
-        print("Connection closed.")
-        # remove player from socket list
+    # Call the appropriate event handler based on the message type
+    event_handler = event_handlers.get(msg_type)
+    if event_handler:
+        try:
+            await event_handler(player, message)
+        except Exception as e:
+            print(f"Error processing message from player {player.uid}: {str(e)}")
+    print(message)
 
 app = FastAPI()
 
@@ -197,12 +167,12 @@ async def lobby_endpoint(
 
 
     if user_id is None:
-        await ws.send_text(str({"msg": "User ID is required."}))
+        await ws.send_text(str({"type": "info", "msg": "User ID is required."}))
         await ws.close()
         return
     
     if Authorization is None:
-        await ws.send_text(str({"msg": "Authorization is required."}))
+        await ws.send_text(str({"type": "info", "msg": "Authorization is required."}))
         await ws.close()
         return
     
@@ -210,7 +180,7 @@ async def lobby_endpoint(
     if lobby_id not in LOBBIES.keys():
         lobby_data = lobby_service.get_lobby_data(lobby_id)
         if lobby_data is None:
-            ws.send_text(str({"msg": "Lobby not found."}))
+            ws.send_text(str({"type": "info", "msg": "Lobby not found."}))
             await ws.close()
             return
         lobby = Lobby(lobby_data["players"])
@@ -220,7 +190,7 @@ async def lobby_endpoint(
         if lobby.status == "closed":
             lobby_data = lobby_service.get_lobby_data(lobby_id)
             if lobby_data is None:
-                ws.send_text(str({"msg": "Lobby not found."}))
+                ws.send_text(str({"type": "info", "msg": "Lobby not found."}))
                 await ws.close()
                 return
             lobby = Lobby(lobby_data["players"])
@@ -231,7 +201,7 @@ async def lobby_endpoint(
             lobby.add_player(ws)
 
 
-    player = Player(user_id, Authorization, ws)
+    player = Player(user_id, Authorization, ws, "red", "SpyMaster")
 
     await ws.accept()
     lobby.add_player(player)

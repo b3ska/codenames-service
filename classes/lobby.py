@@ -1,12 +1,4 @@
-from fastapi import WebSocket
-
-class Player:
-    def __init__(self, uid: str, auth:str, ws: WebSocket):
-        self.uid = uid
-        self.ws = ws
-
-    async def send_msg(self, message: str):
-        await self.ws.send_text(message)
+from player import Player
 
 class Lobby:
     def __init__(self, expected_players: list[str]):
@@ -31,14 +23,22 @@ class Lobby:
         if (self.players == []):
             self.status = "empty"
 
-    def send_msg_to_all(self, message: str):
+    def send_msg_to_all(self, message: str, type_: str, uid = ""):
         for player in self.players:
-            player.send_msg(message)
+            player.send_msg(str({
+                "msg": message,
+                "type": type_,
+                "uid": uid
+            }))
     
-    def send_msg_to_player(self, uid: str, message: str):
+    def send_msg_to_player(self, to_uid: str, message: str, type_: str, from_uid = ""):
         for player in self.players:
-            if player.uid == uid:
-                player.send_msg(message)
+            if player.uid == to_uid:
+                player.send_msg(str({
+                    "msg": message,
+                    "type": type_,
+                    "uid": from_uid
+                }))
 
     def close(self):
         self.send_msg_to_all(str({"msg":"The lobby has been closed."}))
@@ -49,6 +49,6 @@ class Lobby:
 
     async def start_game(self, start_game: function):
         if self.host:
-            await self.host.send_msg("Starting the game!")
+            await self.send_msg_to_all("game has started", "move", self.host.uid)
         else:
             print("No host to start the game!")
