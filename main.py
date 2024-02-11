@@ -95,8 +95,8 @@ LOBBIES = {}
 async def lobby_endpoint(
     lobby_id: str,
     ws: WebSocket,
-    user_id: Annotated[str | None, Header()] = Header(None),
-    Authorization: Annotated[str | None, Header()] = Header(None),
+    user_id: str | None = Header(default=None),
+    Authorization: str | None = Header(default=None),
     ):
 
 

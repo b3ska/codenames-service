@@ -1,6 +1,6 @@
 import random
 from classes.field import Field
-from player import Player
+from classes.player import Player
 
 class Lobby:
     def __init__(self, expected_players: list[str]):
