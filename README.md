@@ -14,6 +14,6 @@ Docs: /docs
 4. `pip install -r requirements.txt`
 
 ### Start:
-`python -m uvicorn src.main:app --reload --port 8083`
+`python -m uvicorn main:app --reload --port 8083`
 
 
