@@ -16,3 +16,4 @@ tests/__pycache__/test_main.cpython-312.pyc
 tests/__pycache__/test_player.cpython-312.pyc
 classes/__pycache__/Card.cpython-312.pyc
 classes/__pycache__/Field.cpython-312.pyc
+venv/
