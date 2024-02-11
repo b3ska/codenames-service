@@ -18,3 +18,4 @@ classes/__pycache__/Card.cpython-312.pyc
 classes/__pycache__/Field.cpython-312.pyc
 venv/
 .venv/
+*/__pycache__/
