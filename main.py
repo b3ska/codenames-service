@@ -95,18 +95,20 @@ LOBBIES = {}
 async def lobby_endpoint(
     lobby_id: str,
     ws: WebSocket,
-    user_id: str | None = Header(default=None),
+    userId: str | None = Header(default=None),
     Authorization: str | None = Header(default=None),
     ):
+    await ws.accept()
 
+    print(lobby_id, userId, Authorization)
 
-    if user_id is None:
-        await ws.send_text(str({"type": "info", "msg": "User ID is required."}))
+    if userId is None:
+        await ws.send_text(str({"type": "error", "msg": "User ID is required."}))
         await ws.close()
         return
     
     if Authorization is None:
-        await ws.send_text(str({"type": "info", "msg": "Authorization is required."}))
+        await ws.send_text(str({"type": "error", "msg": "Authorization is required."}))
         await ws.close()
         return
     
@@ -114,7 +116,7 @@ async def lobby_endpoint(
     if lobby_id not in LOBBIES.keys():
         lobby_data = lobby_service.get_lobby_data(lobby_id)
         if lobby_data is None:
-            ws.send_text(str({"type": "info", "msg": "Lobby not found."}))
+            await ws.send_text(str({"type": "info", "msg": "Lobby not found."}))
             await ws.close()
             return
         lobby = Lobby(lobby_data["players"])
@@ -124,7 +126,7 @@ async def lobby_endpoint(
         if lobby.status == "closed":
             lobby_data = lobby_service.get_lobby_data(lobby_id)
             if lobby_data is None:
-                ws.send_text(str({"type": "info", "msg": "Lobby not found."}))
+                await ws.send_text(str({"type": "info", "msg": "Lobby not found."}))
                 await ws.close()
                 return
             lobby = Lobby(lobby_data["players"])
@@ -135,7 +137,7 @@ async def lobby_endpoint(
             lobby.add_player(ws)
 
 
-    player = Player(user_id, Authorization, ws, "red", "SpyMaster")
+    player = Player(userId, Authorization, ws, "red", "SpyMaster")
 
     await ws.accept()
     lobby.add_player(player)
@@ -149,7 +151,7 @@ async def lobby_endpoint(
         print(e)
     finally:
         # Remove the player when the WebSocket connection is closed
-        lobby.remove_player(user_id)
+        lobby.remove_player(userId)
         if ws == lobby.host:
             lobby.close()
         await ws.close()
