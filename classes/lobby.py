@@ -47,8 +47,17 @@ class Lobby:
         self.players = []
         self.status = "closed"
 
-    async def start_game(self, start_game: function):
-        if self.host:
+    async def start_game(self, uid: str):
+        if self.host.uid == uid:
             await self.send_msg_to_all("game has started", "move", self.host.uid)
-        else:
-            print("No host to start the game!")
+            self.status = "in_progress"
+    
+    def handle_move(self, move: str, uid: str):
+        self.send_msg_to_all(move, "move", uid)
+
+    def handle_game_state(self, game_state: str, uid: str):
+        if game_state == "in_progress":
+            self.start_game(uid)
+    
+    def info_handler():
+        pass

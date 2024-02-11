@@ -128,7 +128,7 @@ async def game(socket_list, field, lobby_id):
         
     log_game_moves("Game over.", lobby_id)
 
-async def handler(msg, websocket, lobby):
+async def handler(msg, lobby, uid, ws):
     try:
         message = json.loads(msg)
         print(message)
@@ -138,7 +138,7 @@ async def handler(msg, websocket, lobby):
 
     event_handlers = {
         "move": lobby.handle_move,
-        "info": lobby.handle_info,
+        "info": lobby.info_handler,
         "game_state": lobby.handle_game_state
         # Add more event handlers as needed
     }
@@ -147,9 +147,9 @@ async def handler(msg, websocket, lobby):
     event_handler = event_handlers.get(msg_type)
     if event_handler:
         try:
-            await event_handler(player, message)
+            await event_handler(message, uid)
         except Exception as e:
-            print(f"Error processing message from player {player.uid}: {str(e)}")
+            print(f"Error processing message from player {uid}: {str(e)}")
     print(message)
 
 app = FastAPI()
@@ -210,7 +210,7 @@ async def lobby_endpoint(
         while True:
             # Wait for messages (in case you want to add more functionality)
             data = await ws.receive_text()
-            handler(data, lobby)
+            handler(data, lobby, player.uid, ws)
     except Exception as e:
         print(e)
     finally:
